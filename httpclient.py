@@ -19,17 +19,15 @@
 # The point is to understand what you have to send and get experience with it
 
 # TODO:
-# when no path passed, errs ex.) https://stackoverflow.com requires https://stackoverflow.com/
+# * when no path passed, errs ex.) https://stackoverflow.com requires https://stackoverflow.com/
+# * posting args in form args = {'a':'aaaaaa', 'd':'012345\r67890\n2321321\n\r'}
+# * prop licence
 
 import sys
 import socket
 import re
 # you may use urllib to encode data appropriately
 import urllib.parse as prs
-
-# PORT = 80
-#PORT = 443
-
 
 
 def help():
@@ -58,8 +56,10 @@ class Request():
         self.http_version = http_version
         self.header_dic = {
         "Host":host,
+        "User-Agent":"curl/7.54.0",
+        "Accept":"*/*"
         }
-        self.body = None        # optional, but used for posts
+        self.body = ''        # optional, but used for posts
 
 
 
@@ -79,7 +79,7 @@ class Request():
 
 
     def request_string(self):
-        return self.header_to_string()
+        return self.header_to_string() + self.body
 
 
 
@@ -99,6 +99,8 @@ class HTTPClient(object):
 
     def parse_url(self, url):
         scheme, netloc, path, params, query, fragment = prs.urlparse(url)
+        if path == '':
+            path = '/'
         if ':' in netloc:
             host, port = netloc.split(':')
         else:
@@ -108,6 +110,8 @@ class HTTPClient(object):
 
     """ returns integer """
     def get_code(self, data):
+        #print("----- DEBUG ------")
+        # print(data)
         header_l1 = data.split('\r\n')[0]
         http_version, code, msg = header_l1.split(' ', 2)
         # print(f"CODE{code}")
@@ -123,9 +127,9 @@ class HTTPClient(object):
         self.socket.sendall(data.encode('utf-8'))
 
     def close(self):
-        print()
-        print("closing socket...")  # TODO: remove this probably
-        print()
+        # print()
+        # print("closing socket...")  # TODO: remove this probably
+        # print()
         self.socket.close()
 
     # read everything from the socket
@@ -141,71 +145,67 @@ class HTTPClient(object):
                 done = not part
         return buffer.decode('utf-8')
 
-    def send_request(self, method, url):
+    def send_request(self, host, port, req_obj):
         # scheme, netloc, path, params, query, fragment = prs.urlparse(url)
-        host, port, path = self.parse_url(url)
+        # host, port, path = self.parse_url(url)
 
-        req_obj = Request(method, path, "HTTP/1.0", host, "curl/7.54.0", "*/*")
+        # req_obj = Request(method, path, "HTTP/1.0", host, "curl/7.54.0", "*/*")
         req_str = req_obj.request_string()
-        # print("REQUEST STRING")
+        print()
+        print("*--- REQUEST STRING ---*")
         print(req_str)
+        print()
 
         self.connect(host, port)
         self.sendall(req_str)
         data = self.recvall()
+        print("---- DATA ----")
+        print(data)
         self.close()
 
         code = self.get_code(data)
+        # print(code)
+        body = data.split("\r\n\r\n")[1]
+        return (code, body)
 
-        return (code, data)
+    def dic_to_urlencoded(self, args):
+        """
+        Converts a key-value dictionary into urlencoded post format a=b&c=d etc
+        Arguments:
+            * args : dic
+        Return
+            * undeclared : string
+        """
+        s = "&"
+        l1 = [f"{item[0]}={item[1]}" for item in args.items()]
+        return s.join(l1)
+
 
 
     def GET(self, url, args=None):
-        # # scheme, netloc, path, params, query, fragment = prs.urlparse(url)
-        # host, port, path = self.parse_url(url)
-        #
-        #
-        #
-        # req_obj = Request("GET", path, "HTTP/1.0", host, "curl/7.54.0", "*/*")
-        # req_str = req_obj.request_string()
-        # # print("REQUEST STRING")
-        # print(req_str)
-        #
-        # self.connect(host, port)
-        # self.sendall(req_str)
-        #
-        # data = self.recvall()
-        # self.close()
-        #
-        # code = self.get_code(data)
-        # # body = ""
+        host, port, path = self.parse_url(url)
+        req_obj = Request("GET", path, "HTTP/1.0", host, "curl/7.54.0", "*/*")
 
-        code, data = self.send_request("GET", url)
-        print(code)
-        #print(data)
-        return HTTPResponse(code, data)
+        code, body = self.send_request(host, port, req_obj)
+        # print("---GET BODY---")
+        # print(body)
+        return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
-        # # scheme, netloc, path, params, query, fragment = prs.urlparse(url)
-        # host, port, path = self.parse_url(url)
-        #
-        #
-        #
-        # req_obj = Request("POST", path, "HTTP/1.0", host, "curl/7.54.0", "*/*")
-        # req_str = req_obj.request_string()
-        # # print("REQUEST STRING")
-        # print(req_str)
-        #
-        # self.connect(host, port)
-        # self.sendall(req_str)
-        #
-        # data = self.recvall()
-        # self.close()
-        #
-        # code = self.get_code(data)
-        # # body = ""
-        code, data = self.send_request("POST", url)
-        return HTTPResponse(code, data)
+        host, port, path = self.parse_url(url)
+        req_obj = Request("POST", path, "HTTP/1.0", host, "curl/7.54.0", "*/*")
+        req_obj.header_dic["Content-Type"] = "application/x-www-form-urlencoded"
+
+        if args is not None:
+            # body = self.dic_to_urlencoded(args)
+            req_body = prs.urlencode(args)  # WARNING: not sure if legal library, need to implement my own percent encoding
+            req_obj.body = req_body
+
+        req_obj.header_dic["Content-Length"] = str(len(req_obj.body.encode('utf-8')))
+
+
+        code, body = self.send_request(host, port, req_obj)
+        return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
         if (command == "POST"):
@@ -232,28 +232,6 @@ if __name__ == "__main__":
         help()
         sys.exit(1)
 
-    """ parse input and create request string formatted to http """
-    # url_obj = prs.urlparse(sys.argv[1])
-    # # scheme='https', netloc='en.wikipedia.org', path='/wiki/David_H._Turpin', params='', query='', fragment='')
-    # scheme, netloc, path, params, query, fragment = url_obj
-    # method, path, http_version, host, user_agent, accept
-    # req_obj = Request("GET", path, "HTTP/1.0", netloc, "curl/7.54.0", "*/*")
-    # req_str = req_obj.request_string()
-    # print("REQUEST STRING")
-    # print(req_str)
-    # --- Create connection, send, recv, close connection --- #
-    # bool = 1
-    # if bool:
-    #     client.connect(netloc, PORT)
-    #
-    # if bool:
-    #     client.sendall(req_str)
-    #     print(client.recvall())
-    #
-    # if bool:
-    #     client.close()
-    # ------------------------------------------------------- #
-
 
     if (len(sys.argv) == 3):
         # post requested I think
@@ -261,3 +239,34 @@ if __name__ == "__main__":
     else:
         # get requested
         print(client.command( sys.argv[1] ))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Anchor
