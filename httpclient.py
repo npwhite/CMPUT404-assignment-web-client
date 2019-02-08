@@ -29,6 +29,8 @@ import re
 # you may use urllib to encode data appropriately
 import urllib.parse as prs
 
+DEBUG = False
+
 
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
@@ -50,14 +52,14 @@ class HTTPResponse(object):
 """ Modified code from previous assignment """
 class Request():
 
-    def __init__(self, method, path, http_version, host, user_agent, accept):
+    def __init__(self, method, path, http_version, host, accept):
         self.method = method
         self.path = path
         self.http_version = http_version
         self.header_dic = {
         "Host":host,
-        "User-Agent":"curl/7.54.0",
-        "Accept":"*/*"
+        # "User-Agent":"curl/7.54.0",
+        "Accept":accept
         }
         self.body = ''        # optional, but used for posts
 
@@ -67,9 +69,8 @@ class Request():
         """
         Converts header_dic into a formatted sendable string string
         """
-        # header_string = self.method + self.path + self.http_version + "\r\n"
-        # header_string = b''
-        header_string = f"{self.method} {self.path} {self.http_version}\r\n"
+        # header_string = f"{self.method} {self.path} {self.http_version}\r\n"
+        header_string = "{} {} {}\r\n".format(self.method, self.path, self.http_version)
 
         for key, value in self.header_dic.items():
             if value is not None:
@@ -86,13 +87,8 @@ class Request():
 
 
 class HTTPClient(object):
-    #def get_host_port(self,url):
 
     def connect(self, host, port):
-        # if LOCALHOST:
-        #     host = host.split(":")[0]  # needed for localhost connection for now
-        # print(host)
-        # print(port)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((host, port))
         return None
@@ -110,11 +106,8 @@ class HTTPClient(object):
 
     """ returns integer """
     def get_code(self, data):
-        #print("----- DEBUG ------")
-        # print(data)
         header_l1 = data.split('\r\n')[0]
         http_version, code, msg = header_l1.split(' ', 2)
-        # print(f"CODE{code}")
         return int(code)
 
     def get_headers(self,data):
@@ -127,13 +120,8 @@ class HTTPClient(object):
         self.socket.sendall(data.encode('utf-8'))
 
     def close(self):
-        # print()
-        # print("closing socket...")  # TODO: remove this probably
-        # print()
         self.socket.close()
 
-    # read everything from the socket
-    # def recvall(self, sock):
     def recvall(self):
         buffer = bytearray()
         done = False
@@ -146,25 +134,24 @@ class HTTPClient(object):
         return buffer.decode('utf-8')
 
     def send_request(self, host, port, req_obj):
-        # scheme, netloc, path, params, query, fragment = prs.urlparse(url)
-        # host, port, path = self.parse_url(url)
-
-        # req_obj = Request(method, path, "HTTP/1.0", host, "curl/7.54.0", "*/*")
         req_str = req_obj.request_string()
-        print()
-        print("*--- REQUEST STRING ---*")
-        print(req_str)
-        print()
+
+        if DEBUG:
+            print()
+            print("*--- REQUEST STRING ---*")
+            print(req_str)
+            print()
 
         self.connect(host, port)
         self.sendall(req_str)
         data = self.recvall()
-        print("---- DATA ----")
-        print(data)
+
+        if DEBUG:
+            print("---- DATA ----")
+            print(data)
         self.close()
 
         code = self.get_code(data)
-        # print(code)
         body = data.split("\r\n\r\n")[1]
         return (code, body)
 
@@ -177,32 +164,27 @@ class HTTPClient(object):
             * undeclared : string
         """
         s = "&"
-        l1 = [f"{item[0]}={item[1]}" for item in args.items()]
+        l1 = ["{}={}".format(item[0], item[1]) for item in args.items()]
         return s.join(l1)
-
 
 
     def GET(self, url, args=None):
         host, port, path = self.parse_url(url)
-        req_obj = Request("GET", path, "HTTP/1.0", host, "curl/7.54.0", "*/*")
+        req_obj = Request("GET", path, "HTTP/1.0", host, "*/*")
 
         code, body = self.send_request(host, port, req_obj)
-        # print("---GET BODY---")
-        # print(body)
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
         host, port, path = self.parse_url(url)
-        req_obj = Request("POST", path, "HTTP/1.0", host, "curl/7.54.0", "*/*")
+        req_obj = Request("POST", path, "HTTP/1.0", host, "*/*")
         req_obj.header_dic["Content-Type"] = "application/x-www-form-urlencoded"
 
         if args is not None:
-            # body = self.dic_to_urlencoded(args)
-            req_body = prs.urlencode(args)  # WARNING: not sure if legal library, need to implement my own percent encoding
+            req_body = prs.urlencode(args)
             req_obj.body = req_body
 
         req_obj.header_dic["Content-Length"] = str(len(req_obj.body.encode('utf-8')))
-
 
         code, body = self.send_request(host, port, req_obj)
         return HTTPResponse(code, body)
@@ -234,10 +216,8 @@ if __name__ == "__main__":
 
 
     if (len(sys.argv) == 3):
-        # post requested I think
         print(client.command( sys.argv[2], sys.argv[1] ))
     else:
-        # get requested
         print(client.command( sys.argv[1] ))
 
 
