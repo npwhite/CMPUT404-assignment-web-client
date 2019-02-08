@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # coding: utf-8
-# Copyright 2016 Abram Hindle, https://github.com/tywtyw2002, and https://github.com/treedust
+# Copyright 2019 Abram Hindle, https://github.com/tywtyw2002, and https://github.com/treedust, Nicholas Whitefield
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,11 +17,6 @@
 # Do not use urllib's HTTP GET and POST mechanisms.
 # Write your own HTTP GET and POST
 # The point is to understand what you have to send and get experience with it
-
-# TODO:
-# * when no path passed, errs ex.) https://stackoverflow.com requires https://stackoverflow.com/
-# * posting args in form args = {'a':'aaaaaa', 'd':'012345\r67890\n2321321\n\r'}
-# * prop licence
 
 import sys
 import socket
@@ -203,10 +198,6 @@ class HTTPClient(object):
 # Host: en.wikipedia.org
 # User-Agent: curl/7.54.0
 # Accept: */*
-
-# python3 prog GET url
-# python3 prog url
-
 if __name__ == "__main__":
     client = HTTPClient()
     # command = "GET"
